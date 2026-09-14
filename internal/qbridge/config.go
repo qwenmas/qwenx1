@@ -29,10 +29,24 @@ type Config struct {
 	Server struct {
 		Port int
 		Host string
+		// DisableDashboard turns off the embedded "/" control panel entirely
+		// (404s the route) when set via DISABLE_DASHBOARD=true. The panel
+		// embeds the live AUTH_TOKEN in its HTML for local convenience, so
+		// it must never be reachable on a publicly exposed deployment
+		// unless AUTH_TOKEN has been changed from the default AND you
+		// accept that anyone with the URL can read it from the page source.
+		DisableDashboard bool
 	}
 	Auth struct {
 		Enabled bool
 		Token   string
+		// DashboardPassword gates the "/" login form (DASHBOARD_PASSWORD).
+		// Kept separate from Token on purpose: logging into the dashboard
+		// shouldn't require handing out the working API key, and the two
+		// can be shared with different people/rotated independently. If
+		// unset, the dashboard login falls back to accepting Token itself
+		// so existing single-secret setups keep working unchanged.
+		DashboardPassword string
 	}
 	Timeouts struct {
 		Default int
@@ -136,8 +150,19 @@ func loadConfig() *Config {
 	if h := os.Getenv("HOST"); h != "" {
 		c.Server.Host = h
 	}
+	if d := os.Getenv("DISABLE_DASHBOARD"); d != "" {
+		switch strings.ToLower(d) {
+		case "1", "true", "yes", "on":
+			c.Server.DisableDashboard = true
+		case "0", "false", "no", "off":
+			c.Server.DisableDashboard = false
+		}
+	}
 	if t := os.Getenv("AUTH_TOKEN"); t != "" {
 		c.Auth.Token = t
+	}
+	if p := os.Getenv("DASHBOARD_PASSWORD"); p != "" {
+		c.Auth.DashboardPassword = p
 	}
 	if t := os.Getenv("TIMEOUT"); t != "" {
 		if n, err := strconv.Atoi(t); err == nil {
